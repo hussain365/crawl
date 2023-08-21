@@ -1,18 +1,19 @@
 import shutil
 import requests
+import sqlite3
 import os
 from mega import Mega
 import json
+
+# sqlite3
+conn = sqlite3.connect("students.db")
+cursor = conn.cursor()
 
 # mega
 mega = Mega()
 m = mega.login('32nanne+college@gmail.com', 'WGkK-9UUGkmXC-_')
 
-web_url = "http://localhost:8000"
-web_headers = {
-    'Content-Type': 'application/json'
-}
-codes = [438, 439, 447, 578, 608, 610, 683, 694]
+codes = [552,595,607,609,740,570,612,678,680,722,584,611,654,691,583,613,675,695]
 for code in codes:
     for i in range(0, 999):
         student_id = f"r141{i:03}"
@@ -29,14 +30,13 @@ for code in codes:
                 student_image = response.json().get("image")
                 student_selfie = response.json().get("selfie")
 
-                payload = json.dumps({
-                    "endpoint": "insert_student",
-                    "student_id": student_id,
-                    "student_name": student_name
-                })
-                response = requests.request(
-                    "POST", url, headers=web_headers, data=payload)
-                print(response.text)
+                cursor.execute(
+                    "SELECT * FROM student WHERE student_id = ?", (student_id,))
+                existing_student = cursor.fetchone()
+
+                if existing_student is None:
+                    cursor.execute("insert into student values(?,?)",
+                                   (student_id, student_name))
 
                 # mega links
                 mega_idcard = ""
@@ -85,20 +85,10 @@ for code in codes:
                             os.remove(selfie_image)
                 except Exception as e:
                     print(e)
-                web_payload = json.dumps({
-                    "endpoint": "insert_image",
-                    "student_id": student_id,
-                    "student_idcard": student_idcard,
-                    "student_image": student_image,
-                    "student_selfie": student_selfie,
-                    "mega_idcard": mega_idcard,
-                    "mega_image": mega_image,
-                    "mega_selfie": mega_selfie,
-                    "json": json.dumps(response.json()),
-                    "code": code,
-                })
-                response = requests.request(
-                    "POST", web_url, headers=web_headers, data=web_payload)
-                print(response.text)
+
+                cursor.execute("insert into images (student_id,student_idcard,student_image,student_selfie,mega_student_idcard,mega_student_image,mega_student_selfie,json,code) values(?,?,?,?,?,?,?,?,?)",
+                               (student_id, student_idcard, student_image, student_selfie, mega_idcard, mega_image, mega_selfie, json.dumps(response.json()), code))
+                conn.commit()
             except Exception as e:
                 print(e)
+
